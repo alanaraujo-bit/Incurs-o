@@ -1,0 +1,7 @@
+# Nada aqui é necessário para a build remota.
+# Sem este arquivo o upload leva os screenshots de inspeção visual (~110 MB).
+.shots
+dist
+scripts
+node_modules
+.git
