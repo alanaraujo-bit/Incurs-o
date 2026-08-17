@@ -25,6 +25,23 @@ npm run preview    # servir o build em :4173
 `npm run shots` exige um servidor de preview rodando e o Chromium do Playwright instalado
 (`npx playwright install chromium`).
 
+## Deploy
+
+Estático, sem backend. Na Vercel o preset Vite é detectado sozinho (`npm run build` → `dist`);
+`vercel.json` cuida do fallback de SPA para os deep links, do cache dos assets e de impedir que o
+`postinstall` do Playwright baixe navegadores na build remota.
+
+O domínio público entra no HTML em tempo de build, porque scrapers de Open Graph não executam
+JavaScript e vários não resolvem caminhos relativos:
+
+| variável                        | origem                        |
+| ------------------------------- | ----------------------------- |
+| `SITE_URL`                      | definida à mão, tem prioridade |
+| `VERCEL_PROJECT_PRODUCTION_URL` | injetada pela Vercel           |
+| fallback                        | `http://localhost:4173`        |
+
+Em domínio próprio, defina `SITE_URL=https://seu-dominio` nas variáveis de ambiente do projeto.
+
 ## Arquitetura
 
 ```

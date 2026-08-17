@@ -3,9 +3,37 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * URL pública do site, resolvida em tempo de build.
+ *
+ * Scrapers de Open Graph não executam JavaScript e vários (WhatsApp entre
+ * eles) não resolvem caminhos relativos, então a imagem social e a canonical
+ * precisam ser absolutas no HTML entregue. A Vercel expõe o domínio de
+ * produção como variável de build; localmente cai no preview padrão.
+ */
+function resolveSiteUrl(): string {
+  const explicit = process.env.SITE_URL
+  if (explicit) return explicit.replace(/\/$/, '')
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  if (vercel) return `https://${vercel}`
+  return 'http://localhost:4173'
+}
+
+/** Substitui %SITE_URL% no index.html pelo domínio real do deploy. */
+function siteUrlPlugin() {
+  const siteUrl = resolveSiteUrl()
+  return {
+    name: 'incursao-site-url',
+    transformIndexHtml(html: string) {
+      return html.replaceAll('%SITE_URL%', siteUrl)
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    siteUrlPlugin(),
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
