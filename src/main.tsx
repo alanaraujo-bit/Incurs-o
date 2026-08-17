@@ -6,7 +6,11 @@ import { ErrorBoundary } from './components/system/ErrorBoundary'
 import { ToastProvider } from './components/ui/Toast'
 import { ProgressProvider } from './store/ProgressContext'
 import { ThemeProvider } from './store/ThemeContext'
+import { setupPWA } from './pwa'
 import './index.css'
+
+// Antes do render: o registro não pode depender de qual tela a árvore escolhe.
+setupPWA()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

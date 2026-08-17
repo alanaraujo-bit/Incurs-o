@@ -26,7 +26,9 @@ function readPreference(): ThemePreference {
 }
 
 function systemTheme(): ResolvedTheme {
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  // `?.` na chamada devolve undefined quando matchMedia não existe; ler
+  // `.matches` direto disso lançaria antes de qualquer coisa renderizar.
+  return window.matchMedia?.('(prefers-color-scheme: light)')?.matches ? 'light' : 'dark'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -38,10 +40,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: light)')
+    const mq = window.matchMedia?.('(prefers-color-scheme: light)')
+    if (!mq) return
     const onChange = () => setSystem(mq.matches ? 'light' : 'dark')
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    // Safari anterior ao 14 só expõe addListener; sem este fallback o efeito
+    // lança e derruba a árvore inteira na inicialização.
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange)
+      return () => mq.removeEventListener('change', onChange)
+    }
+    const legacy = mq as MediaQueryList & {
+      addListener?: (cb: () => void) => void
+      removeListener?: (cb: () => void) => void
+    }
+    legacy.addListener?.(onChange)
+    return () => legacy.removeListener?.(onChange)
   }, [])
 
   const theme: ResolvedTheme = preference === 'system' ? system : preference

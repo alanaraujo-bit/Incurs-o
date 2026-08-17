@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useProgress } from './store/ProgressContext'
+import { dismissBoot } from './lib/boot'
 import { AppShell } from './components/layout/AppShell'
 import { CelebrationLayer } from './components/domain/CelebrationLayer'
 import { SystemBanners } from './components/system/SystemBanners'
@@ -25,12 +26,7 @@ export default function App() {
 
   // A tela de boot do index.html some assim que o estado está hidratado.
   useEffect(() => {
-    if (!ready) return
-    const boot = document.getElementById('boot')
-    if (boot) {
-      boot.setAttribute('hidden', '')
-      window.setTimeout(() => boot.remove(), 500)
-    }
+    if (ready) dismissBoot()
   }, [ready])
 
   if (!ready) return null

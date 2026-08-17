@@ -36,7 +36,10 @@ export default defineConfig({
     siteUrlPlugin(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      // autoUpdate, e não 'prompt': com prompt, o botão "Atualizar" fica dentro
+      // da aplicação. Se a versão em cache não montar, o usuário não alcança o
+      // botão e o service worker mantém a versão quebrada para sempre.
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png'],
       manifest: {
         id: '/',
@@ -68,7 +71,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,webmanifest}'],
         navigateFallback: '/index.html',
+        // Estes precisam vir da rede, nunca do fallback de navegação.
+        navigateFallbackDenylist: [/^\/sw\.js$/, /^\/manifest\.webmanifest$/, /^\/social\.png$/],
         cleanupOutdatedCaches: true,
+        // Assume o controle imediatamente para que uma correção chegue na
+        // primeira abertura seguinte, sem depender de fechar todas as abas.
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: { enabled: false },
     }),

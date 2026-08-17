@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useRegisterSW } from 'virtual:pwa-register/react'
-import { Button } from '../ui/primitives'
 
 /**
- * Estados de sistema: offline e atualização disponível.
- * Aparecem no topo, empurrando nada — sobrepõem sem quebrar o layout.
+ * Estado de sistema: conexão.
+ *
+ * O registro e a atualização do service worker vivem em `src/pwa.ts`, fora da
+ * árvore de componentes — depender do render deixava instalações novas sem
+ * service worker. Como o modo é autoUpdate, também não existe mais banner de
+ * "nova versão": ela se aplica sozinha.
  */
 export function SystemBanners() {
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW()
 
   useEffect(() => {
     const on = () => setOffline(false)
@@ -25,25 +23,12 @@ export function SystemBanners() {
     }
   }, [])
 
-  const banner = needRefresh
+  const banner = offline
     ? {
-        key: 'update',
-        text: 'Nova versão disponível.',
-        action: (
-          <Button size="sm" variant="primary" onClick={() => void updateServiceWorker(true)}>
-            Atualizar
-          </Button>
-        ),
-        onDismiss: () => setNeedRefresh(false),
+        key: 'offline',
+        text: 'Você está offline. A rota e seu progresso continuam funcionando.',
       }
-    : offline
-      ? {
-          key: 'offline',
-          text: 'Você está offline. A rota e seu progresso continuam funcionando.',
-          action: null,
-          onDismiss: undefined,
-        }
-      : null
+    : null
 
   return (
     <AnimatePresence>
@@ -60,17 +45,6 @@ export function SystemBanners() {
         >
           <div className="flex w-full max-w-[440px] items-center gap-3 rounded-md border border-line bg-surface-2 px-4 py-2.5 shadow-e2">
             <span className="min-w-0 flex-1 text-[12.5px] text-ink">{banner.text}</span>
-            {banner.action}
-            {banner.onDismiss && (
-              <button
-                type="button"
-                onClick={banner.onDismiss}
-                className="text-[11px] text-ink-3 hover:text-ink"
-                aria-label="Dispensar"
-              >
-                depois
-              </button>
-            )}
           </div>
         </motion.div>
       )}

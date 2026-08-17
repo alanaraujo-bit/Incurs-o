@@ -119,6 +119,68 @@
           width: 100%;
         }
       }
+
+      /* Estado de falha: substitui a barra quando o app não monta. */
+      #boot-fail {
+        display: none;
+        max-width: 30rem;
+        padding: 0 1.5rem;
+        text-align: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        color: #f2f3f7;
+      }
+      #boot.failed .bar {
+        display: none;
+      }
+      #boot.failed #boot-fail {
+        display: block;
+      }
+      #boot.boot-light #boot-fail {
+        color: #16181d;
+      }
+      #boot-fail .t {
+        margin: 0 0 0.5rem;
+        font-size: 1.0625rem;
+        font-weight: 650;
+      }
+      #boot-fail .d {
+        margin: 0 0 1.25rem;
+        font-size: 0.8125rem;
+        line-height: 1.6;
+        opacity: 0.72;
+      }
+      #boot-fail .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+      }
+      #boot-fail button {
+        min-height: 44px;
+        padding: 0 1.125rem;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: #e3ab4f;
+        color: #14100a;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 550;
+        cursor: pointer;
+      }
+      #boot-fail button.ghost {
+        background: transparent;
+        border-color: currentColor;
+        color: inherit;
+        opacity: 0.66;
+      }
+      #boot-fail .e {
+        margin: 1.25rem 0 0;
+        font-family: ui-monospace, monospace;
+        font-size: 0.6875rem;
+        line-height: 1.5;
+        opacity: 0.42;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>
@@ -128,6 +190,18 @@
         <circle cx="29" cy="24" r="13" opacity="0.5" />
       </svg>
       <div class="bar"><i></i></div>
+      <div id="boot-fail">
+        <p class="t">O aplicativo não conseguiu abrir</p>
+        <p class="d">
+          Isso costuma ser cache antigo guardado pelo navegador. Restaurar resolve e não apaga seu
+          progresso.
+        </p>
+        <div class="actions">
+          <button type="button" id="boot-repair">Restaurar aplicativo</button>
+          <button type="button" id="boot-reload" class="ghost">Só recarregar</button>
+        </div>
+        <p class="e" id="boot-error"></p>
+      </div>
     </div>
     <div id="root"></div>
     <noscript>
@@ -136,6 +210,101 @@
         <p>Este aplicativo precisa de JavaScript para funcionar.</p>
       </div>
     </noscript>
+    <script>
+      /**
+       * Rede de segurança da inicialização.
+       *
+       * A tela de boot só some quando o React monta. Sem isto, qualquer falha
+       * — chunk que não chega, cache do service worker parcialmente descartado
+       * pelo iOS, erro em tempo de execução — deixa o usuário preso numa barra
+       * de carregamento animada, sem saída e sem informação.
+       *
+       * Aqui a falha vira estado visível e recuperável. O reparo remove
+       * service workers e caches, mas NUNCA toca no localStorage: o progresso
+       * da maratona sobrevive.
+       */
+      (function () {
+        var boot = document.getElementById('boot');
+        if (!boot) return;
+        var TIMEOUT_MS = 12000;
+        var failed = false;
+        var timer;
+
+        function fail(reason) {
+          if (failed || window.__incursaoBooted) return;
+          failed = true;
+          clearTimeout(timer);
+          boot.classList.add('failed');
+          boot.removeAttribute('aria-hidden');
+          var slot = document.getElementById('boot-error');
+          if (slot && reason) slot.textContent = String(reason).slice(0, 300);
+        }
+
+        timer = setTimeout(function () {
+          fail('Tempo limite de inicialização (' + TIMEOUT_MS / 1000 + 's).');
+        }, TIMEOUT_MS);
+
+        window.addEventListener('error', function (event) {
+          // Falha ao carregar script/estilo dispara error no elemento.
+          var target = event.target;
+          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+            fail('Não foi possível carregar: ' + (target.src || target.href));
+            return;
+          }
+          fail(event.message);
+        }, true);
+
+        window.addEventListener('unhandledrejection', function (event) {
+          var r = event.reason;
+          fail((r && (r.message || r)) || 'Falha não tratada durante a inicialização.');
+        });
+
+        // Sinal emitido pelo React assim que a aplicação monta.
+        window.addEventListener('incursao:ready', function () {
+          clearTimeout(timer);
+        });
+
+        var reload = document.getElementById('boot-reload');
+        if (reload) {
+          reload.addEventListener('click', function () {
+            location.reload();
+          });
+        }
+
+        var repair = document.getElementById('boot-repair');
+        if (repair) {
+          repair.addEventListener('click', function () {
+            repair.disabled = true;
+            repair.textContent = 'Restaurando…';
+            var jobs = [];
+            if ('serviceWorker' in navigator) {
+              jobs.push(
+                navigator.serviceWorker
+                  .getRegistrations()
+                  .then(function (regs) {
+                    return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                  })
+                  .catch(function () {}),
+              );
+            }
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches
+                  .keys()
+                  .then(function (keys) {
+                    return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                  })
+                  .catch(function () {}),
+              );
+            }
+            Promise.all(jobs).then(function () {
+              // Query nova evita que o HTML volte do cache do navegador.
+              location.replace(location.pathname + '?restaurado=' + Date.now());
+            });
+          });
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
