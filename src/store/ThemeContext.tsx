@@ -1,0 +1,85 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
+
+export type ThemePreference = 'system' | 'dark' | 'light'
+export type ResolvedTheme = 'dark' | 'light'
+
+const KEY = 'incursao.theme'
+
+interface ThemeApi {
+  preference: ThemePreference
+  theme: ResolvedTheme
+  setPreference: (value: ThemePreference) => void
+  toggle: () => void
+}
+
+const ThemeCtx = createContext<ThemeApi | null>(null)
+
+function readPreference(): ThemePreference {
+  try {
+    const raw = window.localStorage.getItem(KEY)
+    if (raw === 'dark' || raw === 'light' || raw === 'system') return raw
+  } catch {
+    /* storage indisponível */
+  }
+  return 'system'
+}
+
+function systemTheme(): ResolvedTheme {
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
+    typeof window === 'undefined' ? 'system' : readPreference(),
+  )
+  const [system, setSystem] = useState<ResolvedTheme>(() =>
+    typeof window === 'undefined' ? 'dark' : systemTheme(),
+  )
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: light)')
+    const onChange = () => setSystem(mq.matches ? 'light' : 'dark')
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  const theme: ResolvedTheme = preference === 'system' ? system : preference
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.theme = theme
+    root.style.colorScheme = theme
+    const meta = document.querySelector('meta[name="theme-color"]')
+    // A barra de status da PWA acompanha o fundo real do app.
+    meta?.setAttribute('content', theme === 'dark' ? '#08090f' : '#f4f1ea')
+  }, [theme])
+
+  const setPreference = useCallback((value: ThemePreference) => {
+    setPreferenceState(value)
+    try {
+      window.localStorage.setItem(KEY, value)
+    } catch {
+      /* storage indisponível */
+    }
+  }, [])
+
+  const toggle = useCallback(() => {
+    setPreference(theme === 'dark' ? 'light' : 'dark')
+  }, [setPreference, theme])
+
+  const value = useMemo(() => ({ preference, theme, setPreference, toggle }), [
+    preference,
+    theme,
+    setPreference,
+    toggle,
+  ])
+
+  return <ThemeCtx.Provider value={value}>{children}</ThemeCtx.Provider>
+}
+
+export function useTheme(): ThemeApi {
+  const ctx = useContext(ThemeCtx)
+  if (!ctx) throw new Error('useTheme precisa estar dentro de <ThemeProvider>')
+  return ctx
+}
